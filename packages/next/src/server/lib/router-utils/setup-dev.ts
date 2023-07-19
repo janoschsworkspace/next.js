@@ -63,6 +63,7 @@ import {
   NEXT_FONT_MANIFEST,
   PAGES_MANIFEST,
   PHASE_DEVELOPMENT_SERVER,
+  SERVER_REFERENCE_MANIFEST,
 } from '../../../shared/lib/constants'
 
 import {
@@ -110,6 +111,7 @@ import {
 } from '../../../build/webpack/plugins/nextjs-require-cache-hot-reloader'
 import { normalizeMetadataRoute } from '../../../lib/metadata/get-metadata-route'
 import { clearModuleContext } from '../render-server'
+import type { ActionManifest } from '../../../build/webpack/plugins/flight-client-entry-plugin'
 
 const wsServer = new ws.Server({ noServer: true })
 
@@ -475,6 +477,7 @@ async function startWatcher(opts: SetupOpts) {
     const pagesManifests = new Map<string, PagesManifest>()
     const appPathsManifests = new Map<string, PagesManifest>()
     const middlewareManifests = new Map<string, MiddlewareManifest>()
+    const actionManifests = new Map<string, ActionManifest>()
     const clientToHmrSubscription = new Map<
       ws,
       Map<string, AsyncIterator<any>>
@@ -522,6 +525,17 @@ async function startWatcher(opts: SetupOpts) {
       appPathsManifests.set(
         pageName,
         await loadPartialManifest(APP_PATHS_MANIFEST, pageName, type)
+      )
+    }
+
+    async function loadActionManifest(pageName: string): Promise<void> {
+      actionManifests.set(
+        pageName,
+        await loadPartialManifest(
+          `${SERVER_REFERENCE_MANIFEST}.json`,
+          pageName,
+          'app'
+        )
       )
     }
 
@@ -633,6 +647,32 @@ async function startWatcher(opts: SetupOpts) {
         }
       }
       manifest.sortedMiddleware = Object.keys(manifest.middleware)
+      return manifest
+    }
+
+    function mergeActionManifests(manifests: Iterable<ActionManifest>) {
+      type ActionEntries = ActionManifest['edge' | 'node']
+      const manifest: ActionManifest = {
+        node: {},
+        edge: {},
+      }
+
+      function mergeActionIds(
+        manifest: ActionEntries,
+        other: ActionEntries
+      ): void {
+        for (const key in other) {
+          const action = (manifest[key] ??= { workers: {}, layer: {} })
+          Object.assign(action.workers, other[key].workers)
+          Object.assign(action.layer, other[key].layer)
+        }
+      }
+
+      for (const m of manifests) {
+        mergeActionIds(manifest.node, m.node)
+        mergeActionIds(manifest.edge, m.edge)
+      }
+
       return manifest
     }
 
@@ -750,6 +790,29 @@ async function startWatcher(opts: SetupOpts) {
       await writeFileAtomic(
         middlewareManifestPath,
         JSON.stringify(middlewareManifest, null, 2)
+      )
+    }
+
+    async function writeActionManifest(): Promise<void> {
+      const actionManifest = mergeActionManifests(actionManifests.values())
+      const actionManifestJsonPath = path.join(
+        distDir,
+        'server',
+        `${SERVER_REFERENCE_MANIFEST}.json`
+      )
+      const actionManifestJsPath = path.join(
+        distDir,
+        'server',
+        `${SERVER_REFERENCE_MANIFEST}.js`
+      )
+      const json = JSON.stringify(actionManifest, null, 2)
+      deleteCache(actionManifestJsonPath)
+      deleteCache(actionManifestJsPath)
+      await writeFile(actionManifestJsonPath, json, 'utf-8')
+      await writeFile(
+        actionManifestJsPath,
+        `self.__RSC_SERVER_MANIFEST=${JSON.stringify(json)}`,
+        'utf-8'
       )
     }
 
@@ -962,6 +1025,7 @@ async function startWatcher(opts: SetupOpts) {
     await writePagesManifest()
     await writeAppPathsManifest()
     await writeMiddlewareManifest()
+    await writeActionManifest()
     await writeOtherManifests()
     await writeFontManifest()
 
@@ -1294,11 +1358,13 @@ async function startWatcher(opts: SetupOpts) {
             await loadAppBuildManifest(page)
             await loadBuildManifest(page, 'app')
             await loadAppPathManifest(page, 'app')
+            await loadActionManifest(page)
 
             await writeAppBuildManifest()
             await writeBuildManifest()
             await writeAppPathsManifest()
             await writeMiddlewareManifest()
+            await writeActionManifest()
             await writeOtherManifests()
 
             processIssues(page, page, writtenEndpoint, true)
