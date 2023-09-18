@@ -141,7 +141,7 @@ pub(crate) async fn next_build(options: TransientInstance<BuildOptions>) -> Resu
         next_config,
         app_dir,
     );
-    let server_compile_time_info = get_server_compile_time_info(mode, env, ServerAddr::empty());
+    let server_compile_time_info = get_server_compile_time_info(mode, env, ServerAddr::empty(), next_config);
 
     // TODO(alexkirsz) Pages should build their own routes, outside of a FS.
     let next_router_fs = Vc::upcast::<Box<dyn FileSystem>>(VirtualFileSystem::new());

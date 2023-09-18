@@ -174,40 +174,46 @@ pub async fn get_server_resolve_options_context(
     .cell())
 }
 
-fn defines(mode: NextMode) -> CompileTimeDefines {
+fn defines(mode: NextMode, server_actions: bool) -> CompileTimeDefines {
     compile_time_defines!(
         process.turbopack = true,
         process.env.NODE_ENV = mode.node_env(),
         process.env.__NEXT_CLIENT_ROUTER_FILTER_ENABLED = false,
         process.env.NEXT_RUNTIME = "nodejs",
-        process.env.__NEXT_EXPERIMENTAL_REACT = false,
+        process.env.__NEXT_EXPERIMENTAL_REACT = server_actions,
     )
     // TODO(WEB-937) there are more defines needed, see
     // packages/next/src/build/webpack-config.ts
 }
 
 #[turbo_tasks::function]
-fn next_server_defines(mode: NextMode) -> Vc<CompileTimeDefines> {
-    defines(mode).cell()
+fn next_server_defines(mode: NextMode, server_actions: bool) -> Vc<CompileTimeDefines> {
+    defines(mode, server_actions).cell()
 }
 
 #[turbo_tasks::function]
-async fn next_server_free_vars(mode: NextMode) -> Result<Vc<FreeVarReferences>> {
-    Ok(free_var_references!(..defines(mode).into_iter()).cell())
+async fn next_server_free_vars(
+    mode: NextMode,
+    server_actions: bool,
+) -> Result<Vc<FreeVarReferences>> {
+    Ok(free_var_references!(..defines(mode, server_actions).into_iter()).cell())
 }
 
 #[turbo_tasks::function]
-pub fn get_server_compile_time_info(
+pub async fn get_server_compile_time_info(
     mode: NextMode,
     process_env: Vc<Box<dyn ProcessEnv>>,
     server_addr: Vc<ServerAddr>,
-) -> Vc<CompileTimeInfo> {
-    CompileTimeInfo::builder(Environment::new(Value::new(
+    next_config: Vc<NextConfig>,
+) -> Result<Vc<CompileTimeInfo>> {
+    let server_actions = *next_config.enable_server_actions().await?;
+    let cti = CompileTimeInfo::builder(Environment::new(Value::new(
         ExecutionEnvironment::NodeJsLambda(NodeJsEnvironment::current(process_env, server_addr)),
     )))
-    .defines(next_server_defines(mode))
-    .free_var_references(next_server_free_vars(mode))
-    .cell()
+    .defines(next_server_defines(mode, server_actions))
+    .free_var_references(next_server_free_vars(mode, server_actions))
+    .cell();
+    Ok(cti)
 }
 
 #[turbo_tasks::function]
