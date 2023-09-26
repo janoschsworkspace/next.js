@@ -150,7 +150,7 @@ impl PageLoaderAsset {
         rebase_prefix_path: Vc<FileSystemPathOption>,
     ) -> Result<Vc<ChunksData>> {
         let this = self.await?;
-        let mut chunks = self.get_page_chunks();
+        let mut chunks: Vc<OutputAssets> = self.get_page_chunks();
 
         // If we are provided a prefix path, we need to rewrite our chunk paths to
         // remove that prefix.

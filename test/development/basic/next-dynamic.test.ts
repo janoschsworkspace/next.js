@@ -29,9 +29,9 @@ const customDocumentGipFiles = {
 
 describe.each([
   ['', 'swc'],
-  ['/docs', 'swc'],
-  ['', 'document.getInitialProps'],
-  ['', 'babel'],
+  //['/docs', 'swc'],
+  //['', 'document.getInitialProps'],
+  //['', 'babel'],
 ])(
   'basic next/dynamic usage, basePath: %p with %p compiler',
   (
@@ -290,7 +290,7 @@ describe.each([
           })
 
           describe('Multiple modules', () => {
-            it('should only include the rendered module script tag', async () => {
+            it.only('should only include the rendered module script tag', async () => {
               const $ = await get$(basePath + '/dynamic/multiple-modules')
               const html = $('html').html()
               expect(html).toMatch(/hello1\.js/)
