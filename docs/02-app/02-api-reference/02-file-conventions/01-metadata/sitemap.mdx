@@ -32,12 +32,12 @@ Add or generate a `sitemap.xml` file that matches the [Sitemaps XML format](http
 
 ## Generate a Sitemap
 
-Add a `sitemap.js` or `sitemap.ts` file that returns [`Sitemap`](#sitemap-return-type).
+Add a `sitemap.js` or `sitemap.ts` file that returns [`Sitemap`](#sitemap-return-type). 
 
 ```ts filename="app/sitemap.ts" switcher
 import { MetadataRoute } from 'next'
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): MetadataRoute.Sitemap {
   return [
     {
       url: 'https://acme.com',
